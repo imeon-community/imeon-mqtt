@@ -5,11 +5,18 @@ import time, schedule
 from paho.mqtt import client as mqtt_client
 from datetime import datetime
 
+
+# imeon to mqqt
+# gets values from .../scan page, parses and sends to mqtt channels
+# receives commands via mqtt imeon/command channel
+# posts result of command to imeon/command/status channel
+
+
 url_login = "http://10.0.20.201/login"
 url_set = "http://10.0.20.201/toRedis"
 url = "http://10.0.20.201/"
 
-#mqtt
+#mqtt settings
 broker = '10.0.20.240'
 port = 1883
 sensor_topic    = "imeon/sensor" 
@@ -22,6 +29,7 @@ debug = True
 
 
 def do_login():
+    # do login
     global s
     payload = {'do_login': 'true',
             'email': 'installer@local',
@@ -42,12 +50,9 @@ def read_values(opt):
         r = s.get(url + opt)
     r.encoding='utf-8-sig'
     print(f"Read Values Status Code: {r.status_code}")
-    #print(r.json())
     if r.json()['val']: print('TRUE')
     else:
         print('FALSE')
-    #print(f"Status Code: {r.status_code}, Response: {r.text}")
-    #print(f"Status Code: {r.status_code}, Response: {r.json()}")
     decode_values_scan(r.json())
  
     return r.status_code
@@ -56,11 +61,12 @@ def do_set_command(command):
     r = s.request("POST", url_set, data={
     'inputdata': command})
     print(f"Set Command: {command} Status Code: {r.status_code}")
-    time.sleep(10)
+    time.sleep(10) # wait for the commacd to sink in
     publish(r.status_code, "command/status")
     return r.status_code
 
 def do_set_time():
+    # set time command
     d_date = datetime.now().strftime(("%Y/%m/%d%H:%M"))
     print(d_date)
     r = s.request("POST", url_set, data={'inputdata': 'CDT' + d_date })
@@ -68,6 +74,7 @@ def do_set_time():
     return r.status_code
 
 def decode_values_scan(data):
+    # decode values received from /scan and map them to mqqt channels
     data1 = data['val'][0]
     imeon_mapping = {'ac_input_total_active_power': 'inverter_AC_power', 
                         'battery_current': 'battery_current_A', 
@@ -91,17 +98,20 @@ def decode_values_scan(data):
                         'ac_output_voltage_t': 'inverter_backup_voltage_L3'
                     }
     for k,v in imeon_mapping.items():
+        # publish values to mqtt
         #print(f'   {v} : {data1[k]}')
         publish(data1[k], v)
     
-    publish(data1['pv_input_power1'] + data1['pv_input_power2'], 'inverter_DC_power' )
-    publish(data1['pv_input_power2'] - data1['pv_input_power1'], 'inverter_dc_diff' )
+    # do some more calculation on the fly and send to communication channels
+    publish(data1['pv_input_power1'] + data1['pv_input_power2'], 'inverter_DC_power' ) # sum of both DC strings
+    publish(data1['pv_input_power2'] - data1['pv_input_power1'], 'inverter_dc_diff' ) # difference between DC strings, interesting in case you have identical strings, so they should demonstrate same production
     print(f'timestamp local { datetime.now().strftime("%Y/%m/%d %H:%M:%S") }, imeon {data1["time"]}')
     return
 
 def connect_mqtt():
+    # connect to mqtt
     def on_connect(client, userdata, flags, rc):
-        client.subscribe("imeon/command", qos=1)
+        client.subscribe("imeon/command", qos=1) # subscribe to the channel to receive commands
         print("subscribing to topic imeon/command")
         if rc==0:
             print("connected OK Returned code=",rc)
@@ -155,7 +165,7 @@ def run():
     global client
     
     
-    schedule.every(30).seconds.do(read_values, opt = 'scan')
+    schedule.every(30).seconds.do(read_values, opt = 'scan') # read Imeon values every 30 seconds
     schedule.every().day.at("00:01:01").do(do_set_time) # synchronize inverter time to server time once a day
     
     client = connect_mqtt()
