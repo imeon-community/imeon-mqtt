@@ -14,6 +14,8 @@ secret_key = secrets.get('SECRET_KEY')
 # posts result of command to imeon/command/status channel
 
 # retrieve secret credentials
+# from secrets.py file 
+# see example in secrets copy.py
 
 url_login = secrets.get('URL_LOGIN')
 url_set = secrets.get('URL_SET')
