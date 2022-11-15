@@ -4,36 +4,40 @@ import json
 import time, schedule
 from paho.mqtt import client as mqtt_client
 from datetime import datetime
-
+from secrets import secrets
+  
+secret_key = secrets.get('SECRET_KEY')
 
 # imeon to mqqt
 # gets values from .../scan page, parses and sends to mqtt channels
 # receives commands via mqtt imeon/command channel
 # posts result of command to imeon/command/status channel
 
+# retrieve secret credentials
 
-url_login = "http://10.0.20.201/login"
-url_set = "http://10.0.20.201/toRedis"
-url = "http://10.0.20.201/"
+url_login = secrets.get('URL_LOGIN')
+url_set = secrets.get('URL_SET')
+url = secrets.get('URL')
+
 
 #mqtt settings
-broker = '10.0.20.240'
+broker = secrets.get('BROKER')
 port = 1883
-sensor_topic    = "imeon/sensor" 
-status_topic    = "imeon/status" 
 client_id       = "imeon"
-username        = "openhabian"
-password        = "habianopen"
+mqtt_username   = secrets.get('MQTT_USERNAME')
+mqtt_password   = secrets.get('MQTT_PASSWORD')
 debug = True
 
+imeon_email = secrets.get('IMEON_EMAIL')
+imeon_psswd = secrets.get('IMEON_PSSWD')
 
 
 def do_login():
     # do login
     global s
     payload = {'do_login': 'true',
-            'email': 'installer@local',
-            'passwd': 'Installer_P4SS'}
+            'email': imeon_email,
+            'passwd': imeon_psswd}
     s = requests.session()
     r = s.post(url_login, data=payload)
     print(f"Login Status Code: {r.status_code}, Response: {r.json()}")
@@ -76,6 +80,7 @@ def do_set_time():
 def decode_values_scan(data):
     # decode values received from /scan and map them to mqqt channels
     data1 = data['val'][0]
+    # mapping of imeon values to channels
     imeon_mapping = {'ac_input_total_active_power': 'inverter_AC_power', 
                         'battery_current': 'battery_current_A', 
                         'battery_soc': 'battery_SOC', 
@@ -134,7 +139,7 @@ def connect_mqtt():
         
 
     client = mqtt_client.Client(client_id, clean_session=True, reconnect_on_failure=True )
-    client.username_pw_set(username, password)
+    client.username_pw_set(mqtt_username, mqtt_password)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message=on_message
