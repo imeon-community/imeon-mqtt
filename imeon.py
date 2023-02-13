@@ -172,8 +172,9 @@ def run():
     global client
     
     
-    schedule.every(30).seconds.do(read_values, opt = 'scan') # read Imeon values every 30 seconds
-    schedule.every().day.at("00:01:01").do(do_set_time) # synchronize inverter time to server time once a day
+    schedule.every().minute.at(":1").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
+    schedule.every().minute.at(":31").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
+    schedule.every().day.at("00:01:15").do(do_set_time) # synchronize inverter time to server time once a day
     
     client = connect_mqtt()
     publish("offline", "status")
