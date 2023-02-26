@@ -36,6 +36,8 @@ debug = True
 #import secrets
 imeon_email = secrets.get('IMEON_EMAIL')
 imeon_psswd = secrets.get('IMEON_PSSWD')
+#imeon_psswd = "Installer_P"
+imeon_access_status = False
 
 #create command queue
 q_commands = Queue()
@@ -43,22 +45,29 @@ q_size = 0
 
 def do_login():
     # do login
-    global s
-    payload = {'do_login': 'true',
-            'email': imeon_email,
-            'passwd': imeon_psswd}
-    s = requests.session()
-    r = s.post(url_login, data=payload)
-    print(f"Login Status Code: {r.status_code}, Response: {r.json()}")
-    time.sleep(1)
-    return r.status_code
+    global s, imeon_access_status
+    while not imeon_access_status:
+        payload = {'do_login': 'true',
+                'email': imeon_email,
+                'passwd': imeon_psswd}
+        s = requests.session()
+        r = s.post(url_login, data=payload)
+        imeon_access_status = r.json()['accessGranted']
+        print(f"Login Status Code: {r.status_code}, AccessGranted: {r.json()['accessGranted']}, Response: {r.json()}")
+        if imeon_access_status:
+            publish("online", "status/imeon")
+        else:
+            publish("offline", "status/imeon")
+        if not imeon_access_status: time.sleep(10)
+    return imeon_access_status
 
 def read_values(opt):
     # scan , imeon-status, data
     #client.loop()
     try:
         r = s.get(url + opt)
-    except:
+    except Exception as err:
+        print("read imeon exception: " + str(err))
         do_login()
         r = s.get(url + opt)
     r.encoding='utf-8-sig'
@@ -117,17 +126,18 @@ def connect_mqtt():
         client.subscribe("imeon/command", qos=1) # subscribe to the channel to receive commands
         print("subscribing to topic imeon/command")
         if rc==0:
-            print("connected OK Returned code=",rc)
+            print("mqtt connected OK Returned code=",rc)
             client.connected_flag=True #Flag to indicate success
-            publish("online", "status")
+            publish("online", "status/mqtt")
         else:
-            print("Bad connection Returned code=",rc)
+            print("mqtt bad connection Returned code=",rc)
             client.bad_connection_flag=True
 #            sys.exit(1) #quit
-            publish("offline", "status")
+            publish("offline", "status/mqtt")
 
     def on_disconnect(client, userdata, flags, rc=0):
         print("DisConnected flags " + str(flags) + " " + str(rc) + str(userdata))
+        publish("offline", "status/mqtt")
         client.connected_flag=False
 
     def on_message(client, userdata, message):
@@ -179,27 +189,26 @@ def execute_q_command():
             publish(q_size, "command/queue")
         time.sleep(7) # wait for the command to sink in
         
-
 def run():
     global payload
     global client
     
+    # first start mqtt connection
+    client = connect_mqtt()
+    
+    # login to imeon
+    # do_login()
     
     schedule.every().minute.at(":01").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
     schedule.every().minute.at(":31").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
     schedule.every().day.at("00:01:15").do(do_set_time) # synchronize inverter time to server time once a day
-    
-    client = connect_mqtt()
-    publish("offline", "status")
-    
+
     while True:
         schedule.run_pending()
         time.sleep(1)
         client.loop()
     
-
 if __name__ == '__main__':
     daemon = threading.Thread(target=execute_q_command, daemon=True, name="Execute q_commands")
     daemon.start()
-    do_login()
     run()
