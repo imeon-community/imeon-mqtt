@@ -23,7 +23,7 @@ secret_key = secrets.get('SECRET_KEY')
 url_login = secrets.get('URL_LOGIN')
 url_set = secrets.get('URL_SET')
 url = secrets.get('URL')
-
+url_settings = secrets.get('URL_SETTINGS')
 
 #mqtt settings
 broker = secrets.get('BROKER')
@@ -55,9 +55,9 @@ def do_login():
         imeon_access_status = r.json()['accessGranted']
         print(f"Login Status Code: {r.status_code}, AccessGranted: {r.json()['accessGranted']}, Response: {r.json()}")
         if imeon_access_status:
-            publish("online", "status/imeon")
+            publish("ON", "status/imeon")
         else:
-            publish("offline", "status/imeon")
+            publish("OFF", "status/imeon")
         if not imeon_access_status: time.sleep(10)
     return imeon_access_status
 
@@ -71,9 +71,10 @@ def read_values(opt):
         do_login()
         r = s.get(url + opt)
     r.encoding='utf-8-sig'
-    print(f"Read Values Status Code: {r.status_code}")
-    decode_values_scan(r.json())
- 
+    print(f"Read /{opt} Values Status Code: {r.status_code}")
+    if opt=="scan": decode_values_scan(r.json())
+    if opt=="data": decode_values_data(r.json())
+    #print(f"json: {r.json()}")
     return r.status_code
 
 def do_set_time():
@@ -83,6 +84,30 @@ def do_set_time():
     r = s.request("POST", url_set, data={'inputdata': 'CDT' + d_date })
     print(f"Time Set Status Code: {r.status_code}")
     return r.status_code
+
+def decode_values_data(data):
+    def transcode(val):
+        #transcode values from true/false and 1/0 to ON/OFF
+        mapping_table = {
+            '1': 'ON',
+            '0': 'OFF',
+            'true': 'ON',
+            'false': 'OFF',
+            'True': 'ON',
+            'False': 'OFF'
+        }
+        return mapping_table[str(val)]
+    publish(transcode(data['ac_output_enabled']), 'ac_output_enabled')
+    publish(transcode(data['enable_status']['charge_bat_with_grid']), 'charge_bat_with_grid')
+    publish(transcode(data['enable_status']['discharge_night']), 'discharge_night')
+    publish(transcode(data['enable_status']['injection']), 'injection')
+    publish(data['max_ac_charging_current'], 'max_ac_charging_current')
+    publish(data['mode_name'], 'mode_name')
+    publish(data['pv_usage_priority'], 'pv_usage_priority')
+
+    discharge_pct = data['discharge_cutoff_pct'].split(" ")
+    publish(int(discharge_pct[0]), 'discharge_cutoff_bat')
+    publish(int(discharge_pct[1]), 'discharge_cutoff_grid')
 
 def decode_values_scan(data):
     # decode values received from /scan and map them to mqqt channels
@@ -113,10 +138,11 @@ def decode_values_scan(data):
         # publish values to mqtt
         #print(f'   {v} : {data1[k]}')
         publish(data1[k], v)
-    
+
     # do some more calculation on the fly and send to communication channels
     publish(data1['pv_input_power1'] + data1['pv_input_power2'], 'inverter_DC_power' ) # sum of both DC strings
     publish(data1['pv_input_power2'] - data1['pv_input_power1'], 'inverter_dc_diff' ) # difference between DC strings, interesting in case you have identical strings, so they should demonstrate same production
+
     print(f'timestamp local { datetime.now().strftime("%Y/%m/%d %H:%M:%S") }, imeon {data1["time"]}')
     return
 
@@ -128,16 +154,16 @@ def connect_mqtt():
         if rc==0:
             print("mqtt connected OK Returned code=",rc)
             client.connected_flag=True #Flag to indicate success
-            publish("online", "status/mqtt")
+            publish("ON", "status/mqtt")
         else:
             print("mqtt bad connection Returned code=",rc)
             client.bad_connection_flag=True
 #            sys.exit(1) #quit
-            publish("offline", "status/mqtt")
+            publish("OFF", "status/mqtt")
 
     def on_disconnect(client, userdata, flags, rc=0):
         print("DisConnected flags " + str(flags) + " " + str(rc) + str(userdata))
-        publish("offline", "status/mqtt")
+        publish("OFF", "status/mqtt")
         client.connected_flag=False
 
     def on_message(client, userdata, message):
@@ -187,7 +213,8 @@ def execute_q_command():
             q_size = q_commands.qsize()
             print(f"q_size: {q_size}")
             publish(q_size, "command/queue")
-        time.sleep(7) # wait for the command to sink in
+        time.sleep(5) # wait for the command to sink in
+        read_values('data')
         
 def run():
     global payload
