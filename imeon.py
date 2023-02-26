@@ -1,10 +1,13 @@
+import cProfile
 import requests
 import requests.exceptions
 import json
 import time, schedule
 from paho.mqtt import client as mqtt_client
+from queue import Queue
+import threading
 from datetime import datetime
-from secrets import secrets
+from secrets_1 import secrets
   
 secret_key = secrets.get('SECRET_KEY')
 
@@ -30,9 +33,13 @@ mqtt_username   = secrets.get('MQTT_USERNAME')
 mqtt_password   = secrets.get('MQTT_PASSWORD')
 debug = True
 
+#import secrets
 imeon_email = secrets.get('IMEON_EMAIL')
 imeon_psswd = secrets.get('IMEON_PSSWD')
 
+#create command queue
+q_commands = Queue()
+q_size = 0
 
 def do_login():
     # do login
@@ -56,19 +63,8 @@ def read_values(opt):
         r = s.get(url + opt)
     r.encoding='utf-8-sig'
     print(f"Read Values Status Code: {r.status_code}")
-    if r.json()['val']: print('TRUE')
-    else:
-        print('FALSE')
     decode_values_scan(r.json())
  
-    return r.status_code
-
-def do_set_command(command):
-    r = s.request("POST", url_set, data={
-    'inputdata': command})
-    print(f"Set Command: {command} Status Code: {r.status_code}")
-    time.sleep(10) # wait for the commacd to sink in
-    publish(r.status_code, "command/status")
     return r.status_code
 
 def do_set_time():
@@ -137,8 +133,8 @@ def connect_mqtt():
     def on_message(client, userdata, message):
         command = str(message.payload.decode("utf-8"))
         print("command received: " , command)
-        do_set_command(command)
-        
+        q_commands.put(command) # put received command on the queue
+      
 
     client = mqtt_client.Client(client_id, clean_session=True, reconnect_on_failure=True )
     client.username_pw_set(mqtt_username, mqtt_password)
@@ -158,7 +154,7 @@ def publish(msg, topic):
             status = result[0]
             if debug:
                 if status == 0:
-                    print(f"Sent `{msg}` to topic `{topic}`")
+                    pass #print(f"Sent `{msg}` to topic `{topic}`")
                 else:
                     print(f"Failed to send message to topic {topic}")
         except Exception as err:
@@ -167,12 +163,28 @@ def publish(msg, topic):
             continue
         break
 
+def execute_q_command():
+    #a daemon thread
+    #execute commands in sequence q_commands
+    #in a separate thread, to make sure that they have separating time period
+    while True:
+        if not q_commands.empty():
+            command = q_commands.get()
+            r = s.request("POST", url_set, data={
+                'inputdata': command})
+            print(f"Set Command received: {command} Status Code: {r.status_code}")
+            publish(command + " - " + str(r.status_code), "command/status")
+            time.sleep(7) # wait for the command to sink in
+            q_size = q_commands.qsize()
+            print(f"q_size: {q_size}")
+        
+
 def run():
     global payload
     global client
     
     
-    schedule.every().minute.at(":1").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
+    schedule.every().minute.at(":01").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
     schedule.every().minute.at(":31").do(read_values, opt = 'scan') # read Imeon values every 30 seconds
     schedule.every().day.at("00:01:15").do(do_set_time) # synchronize inverter time to server time once a day
     
@@ -186,4 +198,7 @@ def run():
     
 
 if __name__ == '__main__':
+    daemon = threading.Thread(target=execute_q_command, daemon=True, name="Execute command queue")
+    daemon.start()
+    do_login()
     run()
