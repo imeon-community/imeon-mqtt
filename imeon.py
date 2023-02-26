@@ -176,6 +176,7 @@ def execute_q_command():
             publish(command + " - " + str(r.status_code), "command/status")
             q_size = q_commands.qsize()
             print(f"q_size: {q_size}")
+            publish(q_size, "command/queue")
         time.sleep(7) # wait for the command to sink in
         
 
