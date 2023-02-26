@@ -174,9 +174,9 @@ def execute_q_command():
                 'inputdata': command})
             print(f"Set Command received: {command} Status Code: {r.status_code}")
             publish(command + " - " + str(r.status_code), "command/status")
-            time.sleep(7) # wait for the command to sink in
             q_size = q_commands.qsize()
             print(f"q_size: {q_size}")
+        time.sleep(7) # wait for the command to sink in
         
 
 def run():
@@ -198,7 +198,7 @@ def run():
     
 
 if __name__ == '__main__':
-    daemon = threading.Thread(target=execute_q_command, daemon=True, name="Execute command queue")
+    daemon = threading.Thread(target=execute_q_command, daemon=True, name="Execute q_commands")
     daemon.start()
     do_login()
     run()
