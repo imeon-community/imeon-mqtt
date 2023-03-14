@@ -68,8 +68,11 @@ def read_values(opt):
         r = s.get(url + opt)
     except Exception as err:
         print("read imeon exception: " + str(err))
+        publish("OFF", "status/imeon")
         do_login()
         r = s.get(url + opt)
+    else:
+        publish("ON", "status/imeon")
     r.encoding='utf-8-sig'
     print(f"Read /{opt} Values Status Code: {r.status_code}")
     if opt=="scan": decode_values_scan(r.json())
@@ -203,9 +206,15 @@ def execute_q_command():
     #a daemon thread
     #execute commands in sequence q_commands
     #in a separate thread, to make sure that they have separating time period
+    #
+    # some values are missing in imeon, so we should read them as commands are posted
+    missing_values = {'BATADCH':'max_discharge_current',
+                      'BATACH':'max_charge_current'}
+    #endless loop, slow, for imeon to digest commands
     while True:
         if not q_commands.empty():
             command = q_commands.get()
+
             r = s.request("POST", url_set, data={
                 'inputdata': command})
             print(f"Set Command received: {command} Status Code: {r.status_code}")
@@ -213,6 +222,12 @@ def execute_q_command():
             q_size = q_commands.qsize()
             print(f"q_size: {q_size}")
             publish(q_size, "command/queue")
+
+            #check if command is from missing_values and publish if so
+            command_missing = [x for x in missing_values if x in command]
+            if command_missing:
+                publish(command_missing[0].split(command_missing[0])[1], missing_values[command_missing[0]])    
+
         time.sleep(5) # wait for the command to sink in
         read_values('data')
         
