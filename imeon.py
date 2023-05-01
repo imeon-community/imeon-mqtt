@@ -43,6 +43,10 @@ imeon_access_status = False
 q_commands = Queue()
 q_size = 0
 
+#potentially missine values
+BATACH = None
+BATADCH = None
+
 def do_login():
     # do login
     global s, imeon_access_status
@@ -107,6 +111,9 @@ def decode_values_data(data):
     publish(data['max_ac_charging_current'], 'max_ac_charging_current')
     publish(data['mode_name'], 'mode_name')
     publish(data['pv_usage_priority'], 'pv_usage_priority')
+    #read value from imeon, if does not exist, use locally stored value
+    publish(data.get('max_charging_current', BATACH), 'max_charge_current') 
+    publish(data.get('max_discharging_current', BATADCH), 'max_discharge_current')
 
     discharge_pct = data['discharge_cutoff_pct'].split(" ")
     publish(int(discharge_pct[0]), 'discharge_cutoff_bat')
@@ -184,9 +191,9 @@ def connect_mqtt():
     
     return client
 
-def publish(msg, topic):
+def publish(msg, tpc):
     # note: topic is constructed imeon/+topic
-    topic = "imeon/" + topic
+    topic = "imeon/" + tpc
     while True:
         try:
             result = client.publish(topic, msg, qos=0, retain=False)
@@ -207,26 +214,24 @@ def execute_q_command():
     #execute commands in sequence q_commands
     #in a separate thread, to make sure that they have separating time period
     #
-    # some values are missing in imeon, so we should read them as commands are posted
-    missing_values = {'BATADCH':'max_discharge_current',
-                      'BATACH':'max_charge_current'}
+    # some values may be missing in imeon data response, so we should read them as commands are posted and hold as local variables
+    global BATADCH, BATACH
     #endless loop, slow, for imeon to digest commands
     while True:
         if not q_commands.empty():
             command = q_commands.get()
 
             r = s.request("POST", url_set, data={
-                'inputdata': command})
+                'inputdata': command}) # send the command to imeon
             print(f"Set Command received: {command} Status Code: {r.status_code}")
             publish(command + " - " + str(r.status_code), "command/status")
             q_size = q_commands.qsize()
             print(f"q_size: {q_size}")
             publish(q_size, "command/queue")
 
-            #check if command is from missing_values and publish if so
-            command_missing = [x for x in missing_values if x in command]
-            if command_missing:
-                publish(command_missing[0].split(command_missing[0])[1], missing_values[command_missing[0]])    
+            #commands in missing_values will be stored as local variables
+            if 'BATADCH' in command: BATADCH = command.split('BATADCH')[1]
+            if 'BATACH' in command: BATACH = command.split('BATACH')[1]
 
         time.sleep(5) # wait for the command to sink in
         read_values('data')
