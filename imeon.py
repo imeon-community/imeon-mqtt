@@ -43,7 +43,7 @@ imeon_access_status = False
 q_commands = Queue()
 q_size = 0
 
-#potentially missine values
+#potentially missing values
 BATACH = None
 BATADCH = None
 
