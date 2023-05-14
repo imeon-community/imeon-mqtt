@@ -230,6 +230,7 @@ def execute_q_command():
             publish(q_size, "command/queue")
 
             #commands in missing_values will be stored as local variables
+            # so they will be published back to mqtt (if no values retrieved from json)
             if 'BATADCH' in command: BATADCH = command.split('BATADCH')[1]
             if 'BATACH' in command: BATACH = command.split('BATACH')[1]
 
