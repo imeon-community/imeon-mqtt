@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "imeon-mqtt"
+version = "0.1.0"
+description = ""
+authors = ["rzylius <rzylius@gmail.com>"]
+readme = "README.md"
+packages = [{include = "imeon_mqtt"}]
+
+[tool.poetry.dependencies]
+python = "3.9.*"
+python-dotenv = "^1.0.0"
+aiomqtt = "^1.1.0"
+requests = "^2.31.0"
+paho-mqtt = "^1.6.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
