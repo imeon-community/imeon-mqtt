@@ -28,7 +28,7 @@ jobs:
       if: steps.check_files.outputs.files_exists == 'true'
       run: mv $DST $DST/$FILE1
     
-    - run: cp * $DST
+    - run: cp -r * $DST
     - run: chown openhab:openhab $DST/*
 
   stop_service:
