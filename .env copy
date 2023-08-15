@@ -1,0 +1,9 @@
+URL_LOGIN=http://[IMEON]/login
+URL_SET=http://[IMEON]/toRedis
+URL=http://[IMEON]/
+URL_SETTINGS=http://[IMEON]/data
+BROKER=[mqtt broker IP]
+MQTT_USERNAME=[username]
+MQTT_PASSWORD=[password]
+IMEON_EMAIL=[imeon login email]
+IMEON_PSSWD=[imeon login password]
