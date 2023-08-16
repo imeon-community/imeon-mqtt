@@ -1,5 +1,6 @@
 # secrets
-secrets_1.py
+.env
+.github/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
