@@ -173,15 +173,14 @@ async def execute_commands(work_queue):
 
     while True:
         command = await work_queue.get()
-        logging.info(f"Queued command {command} ")
+        logging.debug(f"Queued command {command} ")
         #execute commands in sequence q_commands
     
         r = s.request("POST", URL_SET, data={
             'inputdata': command}) # send the command to imeon
-        logging.info(f"Command sent to Imeon: {command} Status Code: {r.status_code}")
-        await publish(command + " - " + str(r.status_code), "command/status")
         q_size = work_queue.qsize()
-        logging.info(f"q_size: {q_size}")
+        logging.info(f"Command sent to Imeon: {command} Status Code: {r.status_code}, q_queue size: {q_size}")
+        await publish(command + " - " + str(r.status_code), "command/status")
         await publish(q_size, "command/queue")
 
         #commands in missing_values will be stored as local variables
