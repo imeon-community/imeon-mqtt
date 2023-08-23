@@ -146,7 +146,6 @@ async def decode_values_scan(data):
                     }
     for k,v in imeon_mapping.items():
         # publish values to mqtt
-        #print(f'   {v} : {data1[k]}')
         await publish(data1[k], v)
 
     # do some more calculation on the fly and send to communication channels
@@ -158,7 +157,6 @@ async def decode_values_scan(data):
 
 async def publish(msg, tpc):
     global mqtt_client
-    # print(f"PUBLISH {tpc} : {msg}") # for debugging
     if not msg: return #do not publish  empty messages
 
     # note: topic is constructed imeon/+topicmaps
