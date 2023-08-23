@@ -1,13 +1,14 @@
 import asyncio
-import logging
 import requests
 from datetime import datetime
 from aiomqtt import Client, MqttError
 import queue
-import json, sys, os, pprint
+import json, sys, os, pprint, logging
 from dotenv import load_dotenv
 from pathlib import Path
 import signal
+
+logging.basicConfig(level=logging.INFO)
 
 # import secrets
 load_dotenv()
@@ -47,7 +48,8 @@ async def do_login():
         s = requests.session()
         r = s.post(URL_LOGIN, data=payload)
         imeon_access_status = r.json()['accessGranted']
-        print(f"Login Status Code: {r.status_code}, AccessGranted: {r.json()['accessGranted']}, Response: {r.json()}")
+        logging.info("Login succesfull")
+        logging.info("Login Status Code %s, AccessGranted: %s, Response: %s", r.status_code, r.json()['accessGranted'], r.json())
         if imeon_access_status:
             await publish("ON", "status/imeon")
         else:
@@ -68,27 +70,26 @@ async def read_values(opt):
             status = r.status_code
         except Exception as err:
             s.close()
-            print("read imeon exception: " + str(err))
+            logging.error("read imeon exception: " + str(err))
             await publish("OFF", "status/imeon")
             asyncio.sleep(5)
             do_login()
         else:
             await publish("ON", "status/imeon")
-        print(str(status))
+        
     
     r.encoding='utf-8-sig'
-    print(f"Read /{opt} -- values Status Code: {r.status_code}")
+    logging.debug(f"Read /{opt} -- values Status Code: {r.status_code}")
     if opt=="scan": await decode_values_scan(r.json())
     if opt=="data": await decode_values_data(r.json())
-    #print(f"json: {r.json()}")
+    logging.debug(f"json: {r.json()}")
     return r.status_code
 
 async def do_set_time():
     # set time command
     d_date = datetime.now().strftime(("%Y/%m/%d%H:%M"))
-    print(d_date)
     r = s.request("POST", URL_SET, data={'inputdata': 'CDT' + d_date })
-    print(f"Time Set Status Code: {r.status_code}")
+    logging.info(f"Time Set Status Code: {r.status_code}")
     return r.status_code
 
 async def decode_values_data(data):
@@ -152,7 +153,7 @@ async def decode_values_scan(data):
     await publish(data1['pv_input_power1'] + data1['pv_input_power2'], 'inverter_DC_power' ) # sum of both DC strings
     await publish(data1['pv_input_power2'] - data1['pv_input_power1'], 'inverter_dc_diff' ) # difference between DC strings, interesting in case you have identical strings, so they should demonstrate same production
 
-    print(f'timestamp local { datetime.now().strftime("%Y/%m/%d %H:%M:%S") }, imeon {data1["time"]}')
+    logging.info(f'IMEON scan timestamp local { datetime.now().strftime("%Y/%m/%d %H:%M:%S") }, imeon {data1["time"]}')
     return
 
 async def publish(msg, tpc):
@@ -172,15 +173,15 @@ async def execute_commands(work_queue):
 
     while True:
         command = await work_queue.get()
-        print(f"Queued command {command} ")
+        logging.info(f"Queued command {command} ")
         #execute commands in sequence q_commands
     
         r = s.request("POST", URL_SET, data={
             'inputdata': command}) # send the command to imeon
-        print(f"Command sent to Imeon: {command} Status Code: {r.status_code}")
+        logging.info(f"Command sent to Imeon: {command} Status Code: {r.status_code}")
         await publish(command + " - " + str(r.status_code), "command/status")
         q_size = work_queue.qsize()
-        print(f"q_size: {q_size}")
+        logging.info(f"q_size: {q_size}")
         await publish(q_size, "command/queue")
 
         #commands in missing_values will be stored as local variables
@@ -229,7 +230,7 @@ async def main():
                         msg = str(message.payload.decode("utf-8"))
                         await q_commands.put(msg)
         except MqttError:
-            print(f"Connection lost; Reconnecting in {interval} seconds ...")
+            logging.error(f"Connection lost; Reconnecting in {interval} seconds ...")
             await asyncio.sleep(interval)
 
 
