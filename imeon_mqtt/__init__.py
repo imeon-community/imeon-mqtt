@@ -210,14 +210,15 @@ async def main():
     
     mqtt_client = Client(hostname=BROKER,port=PORT,username=MQTT_USERNAME,password=MQTT_PASSWORD)
     
-    loop = asyncio.get_event_loop()
-    
+        
     q_commands = asyncio.Queue() # create command queue, which executes received commands
-    q_task = loop.create_task(execute_commands(q_commands)) # create a perpetual task for execution of commands
-
-    read_task = loop.create_task(read_imeon_values_task('scan')) 
-    set_time_task = loop.create_task(set_imeon_time_task())
     
+    q_task = asyncio.create_task(execute_commands(q_commands)) # create a perpetual task for execution of commands
+    read_task = asyncio.create_task(read_imeon_values_task('scan')) 
+    set_time_task = asyncio.create_task(set_imeon_time_task())
+    
+    
+
     # listen to mqtt messages and put them to q_commands queue for execution
     # recconect if lost
     interval = 5  # Seconds
