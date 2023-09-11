@@ -61,21 +61,20 @@ async def do_login():
 async def read_values(opt):
     # opt: scan , imeon-status, data
     #client.loop()
+    global s
     if 's' not in globals(): 
         await do_login()
-    status = 0
-    while status!=200:
-        try:
-            r = s.get(URL + opt)
-            r.raise_for_status()
-            status = r.status_code
-        except Exception as err:
-            s.close()
-            s = None
-            logging.error("read imeon exception: " + str(err))
-            await publish("OFF", "status/imeon")
-        else:
-            await publish("ON", "status/imeon")
+    try:
+        r = s.get(URL + opt)
+        r.raise_for_status()
+        status = r.status_code
+    except Exception as err:
+        s.close()
+        s = None
+        logging.error("read imeon exception: " + str(err))
+        await publish("OFF", "status/imeon")
+    else:
+        await publish("ON", "status/imeon")
         
     
     r.encoding='utf-8-sig'
