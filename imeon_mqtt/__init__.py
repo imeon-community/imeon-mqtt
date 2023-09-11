@@ -47,6 +47,7 @@ async def do_login():
                 'passwd': IMEON_PSSWD}
         s = requests.session()
         r = s.post(URL_LOGIN, data=payload)
+        
         imeon_access_status = r.json()['accessGranted']
         logging.info("Login succesfull")
         logging.info("Login Status Code %s, AccessGranted: %s, Response: %s", r.status_code, r.json()['accessGranted'], r.json())
@@ -70,10 +71,9 @@ async def read_values(opt):
             status = r.status_code
         except Exception as err:
             s.close()
+            s = None
             logging.error("read imeon exception: " + str(err))
             await publish("OFF", "status/imeon")
-            asyncio.sleep(5)
-            do_login()
         else:
             await publish("ON", "status/imeon")
         
