@@ -61,7 +61,7 @@ async def do_login():
 async def read_values(opt):
     # opt: scan , imeon-status, data
     #client.loop()
-    global s
+    global s, imeon_access_status
     if 's' not in globals(): 
         await do_login()
     try:
@@ -156,7 +156,7 @@ async def decode_values_scan(data):
 
 async def publish(msg, tpc):
     global mqtt_client
-    if not msg: return #do not publish  empty messages
+    if not msg and msg!=0: return #do not publish  empty messages, but publish 0s
 
     # note: topic is constructed imeon/+topicmaps
     topic = MQTT_ROOT_TOPIC + tpc
