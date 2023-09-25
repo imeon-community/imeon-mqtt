@@ -234,6 +234,7 @@ async def main():
         except MqttError:
             logging.error(f"Connection lost; Reconnecting in {interval} seconds ...")
             await asyncio.sleep(interval)
+            sys.exit(1)
 
 
 # Change to the "Selector" event loop if platform is Windows
