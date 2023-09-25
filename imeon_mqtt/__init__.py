@@ -1,5 +1,7 @@
 import asyncio
 import requests
+from requests.adapters import HTTPAdapter, Retry
+
 from datetime import datetime
 from aiomqtt import Client, MqttError
 import queue
@@ -46,6 +48,8 @@ async def do_login():
                 'email': IMEON_EMAIL,
                 'passwd': IMEON_PSSWD}
         s = requests.session()
+#        retry = HTTPAdapter(max_retries=Retry(total=10, backoff_factor=1, allowed_methods=None))
+#        s.mount("http://", retry)
         r = s.post(URL_LOGIN, data=payload)
         
         imeon_access_status = r.json()['accessGranted']
@@ -73,6 +77,7 @@ async def read_values(opt):
         s = None
         logging.error("read imeon exception: " + str(err))
         await publish("OFF", "status/imeon")
+        sys.exit(1)
     else:
         await publish("ON", "status/imeon")
         
@@ -217,7 +222,7 @@ async def main():
 
     # listen to mqtt messages and put them to q_commands queue for execution
     # recconect if lost
-    interval = 5  # Seconds
+    interval = 15  # Seconds
     while True:
         try:
             async with mqtt_client:
