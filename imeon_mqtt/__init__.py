@@ -77,6 +77,7 @@ async def read_values(opt):
         s = None
         logging.error("read imeon exception: " + str(err))
         await publish("OFF", "status/imeon")
+        await asyncio.sleep(10)
         sys.exit(1)
     else:
         await publish("ON", "status/imeon")
